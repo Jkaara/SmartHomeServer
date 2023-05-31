@@ -4,23 +4,16 @@ import com.dehnes.smarthome.config.ConfigService
 import com.dehnes.smarthome.datalogging.InfluxDBClient
 import com.dehnes.smarthome.datalogging.QuickStatsService
 import com.dehnes.smarthome.energy_consumption.EnergyConsumptionService
-import com.dehnes.smarthome.energy_pricing.EnergyPriceService
-import com.dehnes.smarthome.energy_pricing.HvakosterstrommenClient
 import com.dehnes.smarthome.environment_sensors.EnvironmentSensorService
 import com.dehnes.smarthome.ev_charging.EvChargingService
 import com.dehnes.smarthome.ev_charging.EvChargingStationConnection
 import com.dehnes.smarthome.ev_charging.FirmwareUploadService
 import com.dehnes.smarthome.ev_charging.PriorityLoadSharing
-import com.dehnes.smarthome.garage_door.GarageController
 import com.dehnes.smarthome.han.HanPortService
-import com.dehnes.smarthome.heating.UnderFloorHeaterService
 import com.dehnes.smarthome.lora.LoRaConnection
 import com.dehnes.smarthome.users.UserSettingsService
 import com.dehnes.smarthome.utils.AES265GCM
 import com.dehnes.smarthome.utils.DateTimeUtils
-import com.dehnes.smarthome.victron.DalyBmsDataLogger
-import com.dehnes.smarthome.victron.VictronEssProcess
-import com.dehnes.smarthome.victron.VictronService
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -48,29 +41,17 @@ class Configuration {
 
         val userSettingsService = UserSettingsService(configService)
 
-        val priceSource = HvakosterstrommenClient(objectMapper)
 
         val influxDBClient = InfluxDBClient(configService)
         val energyConsumptionService = EnergyConsumptionService(influxDBClient)
 
         val clock = Clock.system(DateTimeUtils.zoneId)
 
-        val energyPriceService = EnergyPriceService(
-            objectMapper,
-            priceSource,
-            influxDBClient,
-            executorService,
-            configService,
-            userSettingsService
-        )
-        energyPriceService.start()
-
         val hanPortService = HanPortService(
             "192.168.1.1",
             23000,
             executorService,
             influxDBClient,
-            energyPriceService,
             configService
         )
         hanPortService.start()
@@ -84,26 +65,14 @@ class Configuration {
         )
         evChargingStationConnection.start()
 
-        val victronHost = "192.168.1.18"
-        val victronService = VictronService(
-            victronHost,
-            objectMapper,
-            executorService,
-            configService,
-            influxDBClient,
-            energyConsumptionService
-        )
-
         val evChargingService = EvChargingService(
             evChargingStationConnection,
             executorService,
-            energyPriceService,
             configService,
             clock,
             mapOf(
                 PriorityLoadSharing::class.java.simpleName to PriorityLoadSharing(clock)
             ),
-            victronService,
             userSettingsService,
             energyConsumptionService
         )
@@ -123,52 +92,10 @@ class Configuration {
             userSettingsService
         )
 
-        val garageDoorService = GarageController(
-            loRaConnection,
-            clock,
-            influxDBClient,
-            executorService,
-            userSettingsService
-        )
-        garageDoorService.start()
-
-        val heaterService = UnderFloorHeaterService(
-            loRaConnection,
-            executorService,
-            configService,
-            influxDBClient,
-            energyPriceService,
-            clock,
-            victronService,
-            energyConsumptionService,
-            userSettingsService
-        )
-        heaterService.start()
-
         val videoBrowser = VideoBrowser(userSettingsService)
 
-        val dalyBmsDataLogger = DalyBmsDataLogger(influxDBClient, objectMapper, victronHost, executorService, userSettingsService)
-        dalyBmsDataLogger.apply {
-            reconnect()
-            resubscribe()
-        }
+        val quickStatsService = QuickStatsService(influxDBClient, hanPortService, executorService)
 
-
-        val victronEssProcess = VictronEssProcess(
-            executorService,
-            victronService,
-            configService,
-            energyPriceService,
-            dalyBmsDataLogger,
-            userSettingsService
-        )
-        victronEssProcess.start()
-
-        val quickStatsService = QuickStatsService(influxDBClient, hanPortService, executorService, victronService, dalyBmsDataLogger)
-
-
-        beans[UnderFloorHeaterService::class] = heaterService
-        beans[GarageController::class] = garageDoorService
         beans[ObjectMapper::class] = objectMapper
         beans[EvChargingStationConnection::class] = evChargingStationConnection
         beans[FirmwareUploadService::class] = firmwareUploadService
@@ -176,12 +103,8 @@ class Configuration {
         beans[EnvironmentSensorService::class] = loRaSensorBoardService
         beans[VideoBrowser::class] = videoBrowser
         beans[QuickStatsService::class] = quickStatsService
-        beans[VictronService::class] = victronService
-        beans[VictronEssProcess::class] = victronEssProcess
-        beans[EnergyPriceService::class] = energyPriceService
         beans[UserSettingsService::class] = userSettingsService
         beans[EnergyConsumptionService::class] = energyConsumptionService
-        beans[DalyBmsDataLogger::class] = dalyBmsDataLogger
     }
 
     fun <T> getBean(klass: KClass<*>): T {

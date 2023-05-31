@@ -7,7 +7,6 @@ import com.dehnes.smarthome.ev_charging.CalibrationData
 import com.dehnes.smarthome.ev_charging.LoadSharingPriority
 import com.dehnes.smarthome.users.Level
 import com.dehnes.smarthome.users.UserRole
-import com.dehnes.smarthome.victron.VictronEssProcess
 
 data class ConfigurationRoot(
     val devMode: Boolean = false,
@@ -25,7 +24,6 @@ data class ConfigurationRoot(
 )
 
 data class VictronEssProcessSettings(
-    val currentOperationMode: VictronEssProcess.OperationMode = VictronEssProcess.OperationMode.passthrough,
     val minNumberOfOnlineBmses: Int = 3,
     val bmsAssumeDeadAfterSeconds: Int = 30,
     val socLimitTo: Int = 90,

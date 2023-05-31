@@ -4,21 +4,15 @@ import com.dehnes.smarthome.api.dtos.*
 import com.dehnes.smarthome.config.ConfigService
 import com.dehnes.smarthome.config.EvCharger
 import com.dehnes.smarthome.energy_consumption.EnergyConsumptionService
-import com.dehnes.smarthome.energy_pricing.EnergyPriceService
-import com.dehnes.smarthome.energy_pricing.PriceCategory
-import com.dehnes.smarthome.energy_pricing.priceDecision
 import com.dehnes.smarthome.ev_charging.ChargingState.*
 import com.dehnes.smarthome.users.SystemUser
 import com.dehnes.smarthome.users.UserRole
 import com.dehnes.smarthome.users.UserSettingsService
-import com.dehnes.smarthome.utils.DateTimeUtils
 import com.dehnes.smarthome.utils.withLogging
-import com.dehnes.smarthome.victron.VictronService
 import mu.KotlinLogging
 import java.lang.Integer.min
 import java.time.Clock
 import java.time.Instant
-import java.time.LocalDate
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import kotlin.math.ceil
@@ -70,11 +64,9 @@ enum class ChargingState {
 class EvChargingService(
     private val eVChargingStationConnection: EvChargingStationConnection,
     private val executorService: ExecutorService,
-    private val energyPriceService: EnergyPriceService,
     private val configService: ConfigService,
     private val clock: Clock,
     private val loadSharingAlgorithms: Map<String, LoadSharing>,
-    private val victronService: VictronService,
     private val userSettingsService: UserSettingsService,
     private val energyConsumptionService: EnergyConsumptionService,
 ) {
@@ -280,23 +272,11 @@ class EvChargingService(
          */
         val getReasonCannotCharge = {
             val mode = getMode(clientId)
-            val gridOk = victronService.isGridOk()
-            val suitablePrices =
-                energyPriceService.findSuitablePrices(SystemUser, "EvCharger$clientId", LocalDate.now(DateTimeUtils.zoneId))
-            val priceDecision = suitablePrices.priceDecision()
             var reasonCannotCharge: String? = null
 
             when {
                 mode == EvChargingMode.OFF -> {
                     reasonCannotCharge = "Switched Off"
-                }
-
-                mode == EvChargingMode.ChargeDuringCheapHours && !gridOk -> {
-                    reasonCannotCharge = "Grid is offline"
-                }
-
-                mode == EvChargingMode.ChargeDuringCheapHours && (priceDecision?.current != PriceCategory.cheap) -> {
-                    reasonCannotCharge = "starting @ " + priceDecision?.changesAt?.atZone(clock.zone)?.toLocalTime()
                 }
             }
 

@@ -6,16 +6,10 @@ import com.dehnes.smarthome.api.dtos.RequestType.*
 import com.dehnes.smarthome.configuration
 import com.dehnes.smarthome.datalogging.QuickStatsService
 import com.dehnes.smarthome.energy_consumption.EnergyConsumptionService
-import com.dehnes.smarthome.energy_pricing.EnergyPriceService
 import com.dehnes.smarthome.environment_sensors.EnvironmentSensorService
 import com.dehnes.smarthome.ev_charging.EvChargingService
 import com.dehnes.smarthome.ev_charging.FirmwareUploadService
-import com.dehnes.smarthome.garage_door.GarageController
-import com.dehnes.smarthome.heating.UnderFloorHeaterService
 import com.dehnes.smarthome.users.UserSettingsService
-import com.dehnes.smarthome.victron.DalyBmsDataLogger
-import com.dehnes.smarthome.victron.ESSState
-import com.dehnes.smarthome.victron.VictronEssProcess
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import jakarta.websocket.CloseReason
@@ -33,8 +27,6 @@ class WebSocketServer : Endpoint() {
 
     private val objectMapper = configuration.getBean<ObjectMapper>(ObjectMapper::class)
     private val logger = KotlinLogging.logger { }
-    private val garageDoorService = configuration.getBean<GarageController>(GarageController::class)
-    private val underFloopHeaterService = configuration.getBean<UnderFloorHeaterService>(UnderFloorHeaterService::class)
     private val subscriptions = mutableMapOf<String, Subscription<*>>()
     private val evChargingService =
         configuration.getBean<EvChargingService>(EvChargingService::class)
@@ -46,16 +38,10 @@ class WebSocketServer : Endpoint() {
         configuration.getBean<VideoBrowser>(VideoBrowser::class)
     private val quickStatsService =
         configuration.getBean<QuickStatsService>(QuickStatsService::class)
-    private val victronEssProcess =
-        configuration.getBean<VictronEssProcess>(VictronEssProcess::class)
-    private val energyPriceService =
-        configuration.getBean<EnergyPriceService>(EnergyPriceService::class)
     private val userSettingsService =
         configuration.getBean<UserSettingsService>(UserSettingsService::class)
     private val energyConsumptionService =
         configuration.getBean<EnergyConsumptionService>(EnergyConsumptionService::class)
-    private val dalyBmsDataLogger =
-        configuration.getBean<DalyBmsDataLogger>(DalyBmsDataLogger::class)
 
     override fun onOpen(sess: Session, p1: EndpointConfig?) {
         logger.info("$instanceId Socket connected: $sess")
@@ -81,20 +67,11 @@ class WebSocketServer : Endpoint() {
 
         val rpcRequest = websocketMessage.rpcRequest!!
         val response: RpcResponse = when (rpcRequest.type) {
-            writeBms -> {
-                dalyBmsDataLogger.write(userEmail, rpcRequest.writeBms!!)
-                RpcResponse()
-            }
             userSettings -> RpcResponse(userSettings = userSettingsService.getUserSettings(userEmail))
             readAllUserSettings -> RpcResponse(allUserSettings = userSettingsService.getAllUserSettings(userEmail))
             writeUserSettings -> {
                 userSettingsService.handleWrite(userEmail, rpcRequest.writeUserSettings!!)
                 RpcResponse(allUserSettings = userSettingsService.getAllUserSettings(userEmail))
-            }
-            essRead -> RpcResponse(essState = victronEssProcess.current(userEmail))
-            essWrite -> {
-                victronEssProcess.handleWrite(userEmail, rpcRequest.essWrite!!)
-                RpcResponse(essState = victronEssProcess.current(userEmail, ))
             }
 
             quickStats -> RpcResponse(quickStatsResponse = quickStatsService.getStats())
@@ -106,23 +83,6 @@ class WebSocketServer : Endpoint() {
                 val existing = subscriptions[subscriptionId]
                 if (existing == null) {
                     val sub = when (subscribe.type) {
-                        SubscriptionType.essState -> EssSubscription(subscriptionId, argSession).apply {
-                            victronEssProcess.listeners[subscriptionId] = this::onEvent
-                        }
-
-                        SubscriptionType.quickStatsEvents -> QuickStatsSubscription(subscriptionId, argSession).apply {
-                            quickStatsService.listeners[subscriptionId] = this::onEvent
-                        }
-
-                        SubscriptionType.getGarageStatus -> GarageStatusSubscription(subscriptionId, argSession).apply {
-                            garageDoorService.addListener(userEmail, subscriptionId, this::onEvent)
-                        }
-
-                        SubscriptionType.getUnderFloorHeaterStatus -> UnderFloorHeaterSubscription(
-                            subscriptionId, argSession
-                        ).apply {
-                            underFloopHeaterService.addListener(userEmail, subscriptionId, this::onEvent)
-                        }
 
                         SubscriptionType.evChargingStationEvents -> EvChargingStationSubscription(
                             subscriptionId,
@@ -155,8 +115,6 @@ class WebSocketServer : Endpoint() {
                 RpcResponse(subscriptionRemoved = true)
             }
 
-            garageRequest -> RpcResponse(garageResponse = garageRequest(rpcRequest.garageRequest!!, userEmail))
-            underFloorHeaterRequest -> RpcResponse(underFloorHeaterResponse = underFloorHeaterRequest(userEmail, rpcRequest.underFloorHeaterRequest!!))
             evChargingStationRequest -> RpcResponse(
                 evChargingStationResponse = evChargingStationRequest(
                     userEmail,
@@ -166,26 +124,6 @@ class WebSocketServer : Endpoint() {
 
             environmentSensorRequest -> RpcResponse(environmentSensorResponse = environmentSensorRequest(userEmail, rpcRequest.environmentSensorRequest!!))
             RequestType.videoBrowser -> RpcResponse(videoBrowserResponse = videoBrowser.rpc(userEmail, rpcRequest.videoBrowserRequest!!))
-            readEnergyPricingSettings -> RpcResponse(
-                energyPricingSettingsRead = EnergyPricingSettingsRead(
-                    energyPriceService.getAllSettings(userEmail),
-                )
-            )
-
-            writeEnergyPricingSettings -> {
-                val req = rpcRequest.energyPricingSettingsWrite!!
-                if (req.neutralSpan != null) {
-                    energyPriceService.setNeutralSpan(userEmail, req.service, req.neutralSpan)
-                }
-                if (req.avgMultiplier != null) {
-                    energyPriceService.setAvgMultiplier(userEmail, req.service, req.avgMultiplier)
-                }
-                RpcResponse(
-                    energyPricingSettingsRead = EnergyPricingSettingsRead(
-                        energyPriceService.getAllSettings(userEmail),
-                    )
-                )
-            }
         }
 
         argSession.basicRemote.sendText(
@@ -282,101 +220,6 @@ class WebSocketServer : Endpoint() {
         )
     }
 
-    private fun underFloorHeaterRequest(userEmail: String?, request: UnderFloorHeaterRequest) = when (request.type) {
-        UnderFloorHeaterRequestType.updateMode -> {
-            val success = underFloopHeaterService.updateMode(userEmail, request.newMode!!)
-            underFloopHeaterService.getCurrentState(userEmail).copy(
-                updateUnderFloorHeaterModeSuccess = success
-            )
-        }
-
-        UnderFloorHeaterRequestType.updateTargetTemperature -> {
-            val success = underFloopHeaterService.updateTargetTemperature(userEmail, request.newTargetTemperature!!)
-            underFloopHeaterService.getCurrentState(userEmail).copy(
-                updateUnderFloorHeaterModeSuccess = success
-            )
-        }
-
-        UnderFloorHeaterRequestType.getStatus -> underFloopHeaterService.getCurrentState(userEmail)
-        UnderFloorHeaterRequestType.adjustTime -> {
-            val success = underFloopHeaterService.adjustTime(userEmail)
-            underFloopHeaterService.getCurrentState(userEmail).copy(
-                adjustTimeSuccess = success
-            )
-        }
-
-        UnderFloorHeaterRequestType.firmwareUpgrade -> {
-            val success = underFloopHeaterService.startFirmwareUpgrade(userEmail, request.firmwareBased64Encoded!!)
-            underFloopHeaterService.getCurrentState(userEmail).copy(
-                firmwareUploadSuccess = success
-            )
-        }
-    }
-
-    private fun garageRequest(request: GarageRequest, user: String?) = when (request.type) {
-        GarageRequestType.garageDoorExtendAutoClose -> {
-            garageDoorService.updateAutoCloseAfter(user, request.garageDoorChangeAutoCloseDeltaInSeconds!!)
-            garageDoorService.getCurrentState(user)
-        }
-
-        GarageRequestType.openGarageDoor -> {
-            val sendCommand = garageDoorService.sendCommand(user, true)
-            garageDoorService.getCurrentState(user)?.copy(
-                garageCommandSendSuccess = sendCommand
-            )
-        }
-
-        GarageRequestType.closeGarageDoor -> {
-            val sendCommand = garageDoorService.sendCommand(user, false)
-            garageDoorService.getCurrentState(user)?.copy(
-                garageCommandSendSuccess = sendCommand,
-            )
-        }
-
-        GarageRequestType.getGarageStatus -> garageDoorService.getCurrentState(user)
-        GarageRequestType.adjustTime -> {
-            garageDoorService.getCurrentState(user)?.copy(
-                garageCommandAdjustTimeSuccess = garageDoorService.adjustTime(user)
-            )
-        }
-
-        GarageRequestType.firmwareUpgrade -> {
-            garageDoorService.getCurrentState(user)?.copy(
-                firmwareUploadSuccess = garageDoorService.startFirmwareUpgrade(user, request.firmwareBased64Encoded!!),
-            )
-        }
-    }
-
-    inner class GarageStatusSubscription(
-        subscriptionId: String,
-        sess: Session,
-    ) : Subscription<GarageResponse>(subscriptionId, sess) {
-        override fun onEvent(e: GarageResponse) {
-            logger.info("$instanceId onEvent GarageStatusSubscription $subscriptionId ")
-            sess.basicRemote.sendText(
-                objectMapper.writeValueAsString(
-                    WebsocketMessage(
-                        UUID.randomUUID().toString(),
-                        WebsocketMessageType.notify,
-                        notify = Notify(
-                            subscriptionId,
-                            e,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                        )
-                    )
-                )
-            )
-        }
-
-        override fun close() {
-            garageDoorService.removeListener(subscriptionId)
-            subscriptions.remove(subscriptionId)
-        }
-    }
 
     inner class QuickStatsSubscription(
         subscriptionId: String,
@@ -394,9 +237,7 @@ class WebSocketServer : Endpoint() {
                             null,
                             null,
                             null,
-                            null,
                             e,
-                            null,
                         )
                     )
                 )
@@ -405,37 +246,6 @@ class WebSocketServer : Endpoint() {
 
         override fun close() {
             quickStatsService.listeners.remove(subscriptionId)
-            subscriptions.remove(subscriptionId)
-        }
-    }
-
-    inner class EssSubscription(
-        subscriptionId: String,
-        sess: Session,
-    ) : Subscription<ESSState>(subscriptionId, sess) {
-        override fun onEvent(e: ESSState) {
-            logger.info("$instanceId onEvent EssSubscription $subscriptionId ")
-            sess.basicRemote.sendText(
-                objectMapper.writeValueAsString(
-                    WebsocketMessage(
-                        UUID.randomUUID().toString(),
-                        WebsocketMessageType.notify,
-                        notify = Notify(
-                            subscriptionId,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            e
-                        )
-                    )
-                )
-            )
-        }
-
-        override fun close() {
-            victronEssProcess.listeners.remove(subscriptionId)
             subscriptions.remove(subscriptionId)
         }
     }
@@ -455,10 +265,8 @@ class WebSocketServer : Endpoint() {
                             subscriptionId,
                             null,
                             null,
-                            null,
                             e,
-                            null,
-                            null,
+                            null
                         )
                     )
                 )
@@ -485,9 +293,8 @@ class WebSocketServer : Endpoint() {
                         notify = Notify(
                             subscriptionId,
                             null,
-                            null,
                             e,
-                            null,
+
                             null,
                             null,
                         )
@@ -498,37 +305,6 @@ class WebSocketServer : Endpoint() {
 
         override fun close() {
             evChargingService.removeListener(subscriptionId)
-            subscriptions.remove(subscriptionId)
-        }
-    }
-
-    inner class UnderFloorHeaterSubscription(
-        subscriptionId: String,
-        sess: Session,
-    ) : Subscription<UnderFloorHeaterResponse>(subscriptionId, sess) {
-        override fun onEvent(e: UnderFloorHeaterResponse) {
-            logger.info("$instanceId onEvent UnderFloorHeaterSubscription $subscriptionId ")
-            sess.basicRemote.sendText(
-                objectMapper.writeValueAsString(
-                    WebsocketMessage(
-                        UUID.randomUUID().toString(),
-                        WebsocketMessageType.notify,
-                        notify = Notify(
-                            subscriptionId,
-                            null,
-                            e,
-                            null,
-                            null,
-                            null,
-                            null,
-                        )
-                    )
-                )
-            )
-        }
-
-        override fun close() {
-            underFloopHeaterService.removeListener(subscriptionId)
             subscriptions.remove(subscriptionId)
         }
     }
