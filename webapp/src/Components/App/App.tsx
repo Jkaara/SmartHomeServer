@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Button, Container, Paper, Table, TableBody, TableCell, TableContainer, TableRow } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import './App.css';
+import './../../theme';
 import { QuickStatsResponse } from "../../Websocket/types/QuickStats";
 import WebsocketService, { useUserSettings } from "../../Websocket/websocketClient";
 import Header from "../Header";
@@ -74,7 +75,6 @@ const App = () => {
             fontSize: "20px"
         };
     };
-
 
     return (
         <Container maxWidth="sm" className="App">
@@ -180,8 +180,9 @@ const App = () => {
                                 </TableCell>
                                 <TableCell align="right"
                                            style={calcTemperatureStyle(quickStatsResponse.outsideTemperature)}>
-                                    {new Intl.NumberFormat('nb-NO', {
+                                    {new Intl.NumberFormat('de-DE', {
                                         style: 'unit',
+                                        //@ts-ignore
                                         unit: 'celsius'
                                     }).format(quickStatsResponse.outsideTemperature)}
                                 </TableCell>
