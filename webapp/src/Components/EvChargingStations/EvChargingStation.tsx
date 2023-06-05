@@ -27,7 +27,6 @@ import {
 } from "@mui/material";
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import WebsocketService, { useUserSettings } from "../../Websocket/websocketClient";
-import { timeToDelta } from "../GarageDoor/GarageDoor";
 import { FirmwareUpload } from "./FirmwareUpload";
 
 const stateToText = (state: ChargingState, reasonChargingUnavailable: string | null) => {
@@ -285,15 +284,6 @@ const StationsDetails = (props: StationsDetailsProps) => {
                 <TableRow>
                     <TableCell component="th" scope="row">TCP endpoint</TableCell>
                     <TableCell align="right">{props.clientConnection.addr}:{props.clientConnection.port}</TableCell>
-                </TableRow>
-                <TableRow>
-                    <TableCell component="th" scope="row">TCP connection uptime</TableCell>
-                    <TableCell
-                        align="right">{timeToDelta(props.currentSeconds, props.clientConnection.connectedSince)}</TableCell>
-                </TableRow>
-                <TableRow>
-                    <TableCell component="th" scope="row">Updated</TableCell>
-                    <TableCell align="right">{timeToDelta(props.currentSeconds, props.utcTimestampInMs)} ago</TableCell>
                 </TableRow>
                 <TableRow>
                     <TableCell component="th" scope="row">Firmware version</TableCell>

@@ -1,6 +1,7 @@
 import React, { Dispatch, SetStateAction, useState } from "react";
 import { ESSState, ProfileSettings } from "../../Websocket/types/EnergyStorageSystem";
 import { Accordion, AccordionDetails, AccordionSummary, Button, Grid, TextField } from "@mui/material";
+// @ts-ignore
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import WebsocketClient, { useUserSettings } from "../../Websocket/websocketClient";
 

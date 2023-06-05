@@ -9,14 +9,8 @@ import Header from "../Header";
 import { numberNok } from "../Utils/utils";
 import Icon from '@mdi/react'
 import {
-    mdiCctv,
     mdiEvStation,
-    mdiGarageVariant,
-    mdiHeatingCoil,
     mdiHomeBattery,
-    mdiHomeThermometer,
-    mdiTransmissionTower,
-    mdiVhs,
     mdiAccountSupervisor
 } from '@mdi/js'
 
@@ -92,69 +86,23 @@ const App = () => {
             >
                 <div style={{ display: "flex", flexDirection: "row" }}>
                     <div style={{ margin: "5px 5px 5px 5px", width: "50%" }}>
-                        <Button disabled={!userSettings.userCanRead("garageDoor")} fullWidth variant="contained"
-                                color="primary"
-                                onClick={relative("/garage")}>
-                            <Icon path={mdiGarageVariant} size={3}/>
+                        <Button fullWidth
+                                variant="contained" color="primary" onClick={relative("/energy")}>
+                            <Icon path={mdiHomeBattery} size={3}/>
                         </Button>
                     </div>
                     <div style={{ margin: "5px 5px 5px 5px", width: "50%" }}>
-                        <Button disabled={!userSettings.userCanRead("evCharging")} fullWidth variant="contained"
+                        <Button fullWidth variant="contained"
                                 color="primary" onClick={relative("/evChargingStations")}>
                             <Icon path={mdiEvStation} size={3}/>
                         </Button>
                     </div>
                 </div>
 
-                <div style={{ display: "flex", flexDirection: "row" }}>
-                    <div style={{ margin: "5px 5px 5px 5px", width: "50%" }}>
-                        <Button disabled={!userSettings.userCanRead("energyStorageSystem")} fullWidth
-                                variant="contained" color="primary" onClick={relative("/energy")}>
-                            <Icon path={mdiHomeBattery} size={3}/>
-                        </Button>
-                    </div>
-                    <div style={{ margin: "5px 5px 5px 5px", width: "50%" }}>
-                        <Button disabled={!userSettings.userCanRead("energyPricing")} fullWidth variant="contained"
-                                color="primary"
-                                onClick={relative("/energy_price_settings")}>
-                            <Icon path={mdiTransmissionTower} size={3}/>
-                        </Button>
-                    </div>
-                </div>
 
                 <div style={{ display: "flex", flexDirection: "row" }}>
                     <div style={{ margin: "5px 5px 5px 5px", width: "50%" }}>
-                        <Button disabled={!userSettings.userCanRead("heaterUnderFloor")} fullWidth
-                                variant="contained" color="primary" onClick={relative("/heater")}>
-                            <Icon path={mdiHeatingCoil} size={3}/>
-                        </Button>
-                    </div>
-                    <div style={{ margin: "5px 5px 5px 5px", width: "50%" }}>
-                        <Button disabled={!userSettings.userCanRead("environmentSensors")} fullWidth
-                                variant="contained" color="primary" onClick={relative("/environmentSensors")}>
-                            <Icon path={mdiHomeThermometer} size={3}/>
-                        </Button>
-                    </div>
-                </div>
-
-                <div style={{ display: "flex", flexDirection: "row" }}>
-                    <div style={{ margin: "5px 5px 5px 5px", width: "50%" }}>
-                        <Button disabled={!userSettings.userCanRead("cameras")} fullWidth variant="contained"
-                                color="primary" onClick={relative("/webcams")}>
-                            <Icon path={mdiCctv} size={3}/>
-                        </Button>
-                    </div>
-                    <div style={{ margin: "5px 5px 5px 5px", width: "50%" }}>
-                        <Button disabled={!userSettings.userCanRead("recordings")} fullWidth variant="contained"
-                                color="primary" onClick={relative("/recordings")}>
-                            <Icon path={mdiVhs} size={3}/>
-                        </Button>
-                    </div>
-                </div>
-
-                <div style={{ display: "flex", flexDirection: "row" }}>
-                    <div style={{ margin: "5px 5px 5px 5px", width: "50%" }}>
-                        <Button disabled={!userSettings.userCanRead("userSettings")} fullWidth variant="contained"
+                        <Button fullWidth variant="contained"
                                 color="primary" onClick={relative("/users")}>
                             <Icon path={mdiAccountSupervisor} size={3}/>
                         </Button>
